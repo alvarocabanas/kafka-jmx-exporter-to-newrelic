@@ -1,0 +1,69 @@
+integrations:
+  - name: nri-prometheus
+    config:
+      standalone: false
+      emitters: infra-sdk
+      entity_definitions: [
+        {
+          conditions: [
+            {
+              attribute: "metricName",
+              prefix: "kafka_"
+            }
+          ],
+          identifier: "targetName",
+          name: "targetName",
+          tags: {
+            clusterName: null,
+            targetName: null
+          },
+          type: "KAFKA"
+        },
+      ]
+      ignore_metrics:
+        # This is the exception list.  Allow these.
+        - prefixes:
+          - go_
+          - process_
+          - promhttp_
+      targets:
+        - description: "kafka_exporter"
+          urls: ["kafka_exporter:9308"]
+      verbose: true
+      scrape_duration: "5s"
+      insecure_skip_verify: true
+    timeout: 10s
+  - name: nri-prometheus
+    config:
+      standalone: false
+      emitters: infra-sdk
+      entity_definitions: [
+        {
+          conditions: [
+            {
+              attribute: "metricName",
+              prefix: "kafka_"
+            }
+          ],
+          identifier: "targetName",
+          name: "targetName",
+          tags: {
+            clusterName: null,
+            targetName: null
+          },
+          type: "KAFKA"
+        },
+      ]
+      ignore_metrics:
+        # This is the exception list.  Allow these.
+        - prefixes:
+          - go_
+          - process_
+          - promhttp_
+      targets:
+        - description: "kafka_exporter"
+          urls: ["jmx_exporter:9309"]
+      verbose: true
+      scrape_duration: "5s"
+      insecure_skip_verify: true
+    timeout: 10s

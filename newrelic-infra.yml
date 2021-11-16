@@ -1,0 +1,4 @@
+display_name: docker_acabanas
+license_key: <your-license-key>
+staging: true
+verbose: 1

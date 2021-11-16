@@ -1,0 +1,149 @@
+version: '3.3'
+
+services:
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181"
+    networks:
+      - kfk
+
+  kafka1:
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+      - "1099"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka1
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LOG_DIRS: /kafka/logs
+      KAFKA_BROKER_ID: 500
+      KAFKA_offsets_topic_replication_factor: 3
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka1 -Dcom.sun.management.jmxremote.rmi.port=1099"
+      JMX_PORT: 1099
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - kfk
+
+  kafka2:
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+      - "1099"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka2
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LOG_DIRS: /kafka/logs
+      KAFKA_BROKER_ID: 501
+      KAFKA_offsets_topic_replication_factor: 3
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka2 -Dcom.sun.management.jmxremote.rmi.port=1099"
+      JMX_PORT: 1099
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - kfk
+
+  kafka3:
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+      - "1099"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka3
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LOG_DIRS: /kafka/logs
+      KAFKA_BROKER_ID: 502
+      KAFKA_offsets_topic_replication_factor: 3
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka3 -Dcom.sun.management.jmxremote.rmi.port=1099"
+      JMX_PORT: 1099
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - kfk
+
+  start_3party_dependencies:
+    image: dadarek/wait-for-dependencies
+    environment:
+      - SLEEP_LENGTH=5
+      - TIMEOUT_LENGTH=120
+    networks:
+      - kfk
+    depends_on:
+      - kafka1
+    command: kafka1:9092
+
+  kafka_exporter:
+    container_name: kafka_exporter
+    image: danielqsj/kafka-exporter:latest
+    command: --kafka.server=kafka1:9092
+    ports:
+      - "9308:9308"
+    networks:
+      - kfk
+    depends_on:
+      - start_3party_dependencies
+
+  jmx_exporter:
+    container_name: jmx_exporter
+    build:
+      context: jmx-exporter
+      args:
+        - EXPORTER_VERSION=0.16.2
+    ports:
+      - "9309:9309"
+    networks:
+      - kfk
+    depends_on:
+      - start_3party_dependencies
+
+  kafka_dummy_consumer:
+    container_name: kafka_dummy_consumer
+    build:
+      context: consumer-producer
+      args:
+        - JMX_HOST=kafka_dummy_consumer
+        - JMX_PORT=1087
+    command: ["producer","kafka1:9092","topic-A"]
+    networks:
+      - kfk
+    depends_on:
+      - start_3party_dependencies
+
+  kafka_dummy_producer:
+    container_name: kafka_dummy_producer
+    build:
+      context: consumer-producer
+      args:
+        - JMX_HOST=kafka_dummy_producer
+        - JMX_PORT=1088
+    command: ["consumer","kafka1:9092","topic-A","group-A"]
+    networks:
+      - kfk
+    depends_on:
+      - start_3party_dependencies
+
+  kakfa_agent:
+    container_name: kakfa_agent
+    image: newrelic/infrastructure-bundle:latest
+    volumes:
+      - /:/host:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./newrelic-infra.yml:/etc/newrelic-infra.yml
+      - ./prometheus-config.yml:/etc/newrelic-infra/integrations.d/nri-prometheus.yml
+    pid: host
+    cap_add:
+      - SYS_PTRACE
+    privileged: true
+    networks:
+      - kfk
+    depends_on:
+      - kafka_exporter
+
+networks:
+  kfk:
+    driver: bridge
+
